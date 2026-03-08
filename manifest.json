@@ -1,8 +1,7 @@
 {
   "name": "四國旅遊導覽",
   "short_name": "四國行程",
-  "start_url": "./shikoku.html",
-  "scope": "./",
+  "start_url": "shikoku.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2196F3",
