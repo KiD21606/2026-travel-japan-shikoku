@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 四國自駕之旅 (圖片與地圖更新版)</title>
+
+    <link rel="manifest" href="manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="四國行程">
+    <link rel="apple-touch-icon" href="images/app-icon.png">
+    
+    <style>
+        :root {
+            --primary-color: #2E8B57; /* 四國綠 */
+            --bg-color: #f4f6f8;
+            --text-color: #333;
+            --header-height: 85px; 
+            --nav-height: 50px;
+            --sticky-top: calc(var(--header-height) + var(--nav-height));
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding-bottom: 60px;
+            line-height: 1.6;
+        }
+
+        /* 頂部標題區域 */
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            height: var(--header-height);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        h1 { margin: 0; font-size: 1.3rem; font-weight: 700; }
+        h2 { font-size: 0.9rem; margin: 5px 0 0 0; opacity: 0.9; font-weight: normal; }
+
+        /* 導覽列 (兩個按鈕) */
+        .nav-tabs {
+            display: flex;
+            background: #fff;
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            width: 100%;
+            height: var(--nav-height);
+            z-index: 999;
+            box-shadow: 0 3px 5px rgba(0,0,0,0.05);
+            border-bottom: 1px solid #eee;
+        }
+        .nav-btn {
+            flex: 1; /* 均分 50% 寬度 */
+            border: none;
+            background: none;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #888;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .nav-btn.active {
+            color: var(--primary-color);
+            border-bottom: 3px solid var(--primary-color);
+            background-color: #f9fffb;
+        }
+
+        /* 內容區容器 */
+        .content-section {
+            display: none;
+            padding: 15px;
+            max-width: 800px;
+            margin: 0 auto;
+            margin-top: calc(var(--sticky-top) + 15px);
+        }
+        .content-section.active {
+            display: block;
+        }
+
+        /* 路線圖圖片樣式 */
+        .map-image {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: block;
+        }
+
+        /* 行程總覽樣式 */
+        .overview-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-left: 5px solid var(--primary-color);
+        }
+        .overview-date { font-weight: bold; color: var(--primary-color); display: block; margin-bottom: 6px; }
+
+        /* 詳細行程 (折疊功能) */
+        .day-wrapper { margin-bottom: 0; background: #fff; position: relative; }
+        .day-header {
+            background: linear-gradient(to right, #2E8B57, #4cae78);
+            color: white;
+            padding: 15px;
+            font-weight: bold;
+            font-size: 1.05rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: var(--sticky-top);
+            z-index: 900;
+            box-shadow: 0 2px 3px rgba(0,0,0,0.1); 
+        }
+        .day-header::after { content: '▼'; font-size: 0.8rem; transition: transform 0.3s; }
+        .day-wrapper.open .day-header::after { transform: rotate(180deg); }
+        .day-content { display: none; padding: 20px 15px 15px 15px; border-bottom: 1px solid #eee; }
+        .day-wrapper.open .day-content { display: block; }
+
+        /* 時間軸樣式 */
+        .timeline-item {
+            position: relative;
+            padding-left: 20px;
+            margin-bottom: 25px;
+            border-left: 2px solid #e0e0e0;
+            margin-left: 8px;
+        }
+        .timeline-item::before {
+            content: ''; position: absolute; left: -6px; top: 5px; width: 10px; height: 10px;
+            border-radius: 50%; background: var(--primary-color); border: 2px solid #fff;
+            box-shadow: 0 0 0 1px var(--primary-color);
+        }
+        .time-badge {
+            display: inline-block; background: #eee; color: #555; padding: 2px 8px;
+            border-radius: 4px; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px;
+        }
+        .location-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 6px; color: #222; }
+        .desc-box { font-size: 0.95rem; color: #555; line-height: 1.6; margin-bottom: 8px; }
+        
+        /* 景點詳細介紹 (折疊區塊) */
+        .btn-toggle-desc {
+            background-color: #fff4e6;
+            color: #e67e22;
+            border: 1px solid #fcdcb1;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            margin-top: 5px;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .btn-toggle-desc:hover { background-color: #ffe0b2; }
+        .detailed-desc {
+            display: none; /* 預設隱藏 */
+            background-color: #fffbf5;
+            border-left: 3px solid #e67e22;
+            padding: 12px 15px;
+            margin-top: 10px;
+            font-size: 0.95rem;
+            color: #444;
+            border-radius: 0 5px 5px 0;
+            line-height: 1.7;
+        }
+        .detailed-desc p { margin: 0 0 10px 0; }
+        .detailed-desc p:last-child { margin-bottom: 0; }
+
+        /* 地圖按鈕 */
+        .map-container { margin-top: 8px; }
+        .btn-map {
+            display: inline-flex; align-items: center; padding: 4px 12px;
+            background-color: #f1f3f4; color: #1a73e8; text-decoration: none;
+            border-radius: 15px; font-size: 0.8rem; margin-right: 5px; margin-bottom: 5px;
+            border: 1px solid #dadce0;
+        }
+
+        footer { text-align: center; padding: 30px; color: #999; font-size: 0.8rem; }
+    </style>
+
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('PWA 準備就緒！'))
+            .catch(err => console.log('註冊失敗', err));
+        });
+    }
+    </script>
+</head>
+<body>
+
+<header>
+    <h1>2026 四國自駕之旅</h1>
+    <h2>3/09 (一) - 3/18 (三)</h2>
+</header>
+
+<div class="nav-tabs">
+    <button class="nav-btn active" onclick="switchTab('overview')">行程總覽</button>
+    <button class="nav-btn" onclick="switchTab('detail')">詳細行程</button>
+</div>
+
+<!-- ================= 1. 行程總覽 ================= -->
+<div id="overview" class="content-section active">
+    
+    <!-- 全區路線圖 -->
+    <img src="./images/all.png" alt="四國全區路線圖" class="map-image" onerror="this.style.display='none'">
+
+    <div class="overview-card"><span class="overview-date">3/09 (一) 抵達岡山</span>高雄 ✈️ 岡山 ➝ 市區晚餐</div>
+    <div class="overview-card"><span class="overview-date">3/10 (二) 岡山觀光</span>後樂園 ➝ 岡山城 ➝ 吉備津神社</div>
+    <div class="overview-card"><span class="overview-date">3/11 (三) 前往四國</span>高松租車 ➝ 大步危遊船 ➝ 祖谷蔓橋</div>
+    <div class="overview-card"><span class="overview-date">3/12 (四) 高知與四萬十</span>弘人市場 ➝ 四萬十川(沉下橋)</div>
+    <div class="overview-card"><span class="overview-date">3/13 (五) 足摺岬</span>足摺海底館 ➝ 竜串海岸 ➝ 足摺岬</div>
+    <div class="overview-card"><span class="overview-date">3/14 (六) 四國喀斯特</span>天空之路(五段/天狗高原) ➝ 健行</div>
+    <div class="overview-card"><span class="overview-date">3/15 (日) 愛媛懷舊</span>內子町老街 ➝ 道後溫泉</div>
+    <div class="overview-card"><span class="overview-date">3/16 (一) 金刀比羅宮</span>金刀比羅宮(骨付鳥) ➝ 丸龜</div>
+    <div class="overview-card"><span class="overview-date">3/17 (二) 大阪移動</span>高松還車/美食 ➝ 巴士往大阪</div>
+    <div class="overview-card"><span class="overview-date">3/18 (三) 返程</span>大阪關西 ✈️ 高雄</div>
+</div>
+
+<!-- ================= 2. 詳細行程 ================= -->
+<div id="detail" class="content-section">
+
+    <!-- Day 1 -->
+    <div class="day-wrapper open">
+        <div class="day-header" onclick="toggleDay(this)">3/09 (一) 抵達岡山</div>
+        <div class="day-content">
+            <!-- Day 1 路線圖 -->
+            <img src="./images/0309.png" alt="Day 1 路線圖" class="map-image" onerror="this.style.display='none'">
+            
+            <div class="timeline-item">
+                <span class="time-badge">12:40 - 16:30</span>
+                <div class="location-title">台灣虎航 IT262 (高雄-岡山)</div>
+                <div class="desc-box">搭乘機場巴士至 JR 岡山車站西口 (約30分)。站牌可直接嗶交通卡。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=岡山駅西口" target="_blank" class="btn-map">📍 車站地圖</a></div>
+            </div>
+            <div class="timeline-item">
+                <span class="time-badge">18:00</span>
+                <div class="location-title">晚餐：岡山市區</div>
+                <div class="desc-box">
+                    • <strong>Time Trip</strong>：韭黃料理、蒜山炒麵<br>
+                    • <strong>味司野村</strong>：牛肉醬汁豬排丼<br>
+                    • <strong>Yayoi</strong>：大阪燒<br>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=タイムトリップ+岡山" target="_blank" class="btn-map">📍 Time Trip</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=味司野村" target="_blank" class="btn-map">📍 味司野村</a>
+                    <a href="https://maps.app.goo.gl/BWdFJRPmtzixCmKC7?g_st=il" target="_blank" class="btn-map">📍 Yayoi</a>
+                </div>
+            </div>
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">HOTEL MYSTAYS Okayama</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=HOTEL+MYSTAYS+Okayama" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 2 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/10 (二) 岡山雙名勝</div>
+        <div class="day-content">
+            <!-- Day 2 路線圖 -->
+            <img src="./images/0310.png" alt="Day 2 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">09:00</span>
+                <div class="location-title">出發與午餐採買</div>
+                <div class="desc-box">便利商店買早餐，沿路經過 Lamu market 超市買午餐。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=ラ・ムー+岡山" target="_blank" class="btn-map">📍 超市地圖</a></div>
+            </div>
+            
+            <div class="timeline-item">
+                <span class="time-badge">10:00</span>
+                <div class="location-title">岡山後樂園</div>
+                <div class="desc-box">搭路面電車於「城下」站徒步10分。通票(含岡山城)640日幣。</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>與金澤兼六園、水戶偕樂園並稱「日本三大名園」，是江戶時代極具代表性的大名庭園。建於1687年，於1700年完工，曾以江戶圖繪忠實重建。</p>
+                    <p>園區廣大，東側有梅花林(約100棵)，櫻花季時園內外約有280棵櫻花盛開。參觀後可直接經由南門跨過月見橋前往岡山城。</p>
+                </div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=岡山後楽園" target="_blank" class="btn-map">📍 景點地圖</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">13:30</span>
+                <div class="location-title">岡山城 (烏城)</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>建於1597年，是日本最古老的城之一。因天守閣外牆塗滿黑漆，擁有「烏城」的別稱。</p>
+                    <p>其天守石牆與第一層平面呈現特殊的不等邊五角形，是配合岡山丘陵地勢設計。天守閣內有繁體中文導覽。</p>
+                </div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=岡山城" target="_blank" class="btn-map">📍 景點地圖</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">16:00</span>
+                <div class="location-title">吉備津神社 (備用景點)</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>傳說是日本「桃太郎」故事的原型地點，主祀「吉備津彥命」。境內有一條全長360公尺、依山勢起伏的壯觀木製迴廊，非常適合拍照。</p>
+                    <p>子安神社是知名的求子與安產守護神，這裡有許多桃子形狀的御守及水蜜桃造型繪馬。</p>
+                </div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=吉備津神社" target="_blank" class="btn-map">📍 景點地圖</a></div>
+            </div>
+            
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">HOTEL MYSTAYS Okayama</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=HOTEL+MYSTAYS+Okayama" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 3 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/11 (三) 深入四國秘境</div>
+        <div class="day-content">
+            <!-- Day 3 路線圖 -->
+            <img src="./images/0311.png" alt="Day 3 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">09:00</span>
+                <div class="location-title">前往高松 & 確認行李</div>
+                <div class="desc-box">搭乘 JR 瀨戶大橋線前往高松。抵達後先去高速巴士站問是否能載大型行李。</div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=高松駅+香川" target="_blank" class="btn-map">📍 車站地圖</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=高松駅高速バスターミナル" target="_blank" class="btn-map">📍 巴士站地圖</a>
+                </div>
+            </div>
+            
+            <div class="timeline-item">
+                <span class="time-badge">11:00</span>
+                <div class="location-title">高松租車 (SERENA e-POWER)</div>
+                <div class="desc-box">MINISTOP 旁租車，並在途中超市 (Daily Mart) 買午餐，或抵達大步危吃拉麵。</div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=デイリーマート+徳島" target="_blank" class="btn-map">📍 超市地圖</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=祖谷そば+もみじ亭" target="_blank" class="btn-map">📍 紅葉亭蕎麥麵</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=徳島ラーメンにしり" target="_blank" class="btn-map">📍 NISHIRI 拉麵</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">14:00</span>
+                <div class="location-title">大步危・小步危</div>
+                <div class="desc-box">搭乘觀光遊覽船 (來回4公里，30分鐘，1200日圓)。</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>由橫貫四國山地的吉野川激流，歷經2億年沖刷形成的天然大峽谷，總長約8公里。</p>
+                    <p>岩石景觀宛如大理石雕刻般聳立，地名意指「大步走危險，小步走也很危險」。搭乘遊覽船是最好的遊覽方式，可近距離欣賞壯麗奇岩。</p>
+                </div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=大歩危峡観光遊覧船" target="_blank" class="btn-map">📍 景點地圖</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">16:00</span>
+                <div class="location-title">祖谷蔓橋</div>
+                <div class="desc-box">單向通行550日圓。</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>日本三大奇橋之一，長45公尺、離河面14公尺，全橋使用軟棗獼猴桃藤蔓編織而成。</p>
+                    <p>相傳是平安時代平家為了防禦敵人而建，設計成隨時可切斷的結構以阻擋追兵。走在上面橋身會晃動，腳底縫隙大，極具刺激感。</p>
+                </div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=祖谷のかずら橋" target="_blank" class="btn-map">📍 景點地圖</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">獨棟民宿 (目の前が吉野川)</div>
+                <div class="desc-box">入住前請先在超市買好烤肉晚餐與隔日早餐。</div>
+                <div class="map-container"><a href="https://maps.app.goo.gl/PbFejQA8sjY6vSzQ7?g_st=il" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 4 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/12 (四) 高知與最後清流</div>
+        <div class="day-content">
+            <!-- Day 4 路線圖 -->
+            <img src="./images/0312.png" alt="Day 4 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">10:30</span>
+                <div class="location-title">弘人市場 (早午餐)</div>
+                <div class="desc-box">必吃：明神丸—鰹魚半敲燒。</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>被譽為「高知的廚房」，是充滿當地豪邁飲食氛圍的美食街，匯集了數十家攤位。</p>
+                    <p>「鰹魚半敲燒(鰹のたたき)」是將新鮮鰹魚以稻草大火燻烤表面，鎖住鮮味並帶有煙燻香，搭配蒜片、鹽或醬油醋享用，極度美味。</p>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=ひろめ市場" target="_blank" class="btn-map">📍 市場地圖</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=明神丸+ひろめ市場店" target="_blank" class="btn-map">📍 明神丸</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">14:00</span>
+                <div class="location-title">四萬十川 (沈下橋)</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>全長196公里，因主流未興建水庫，保留了自然原始風貌，被稱為「日本最後的自然清流」。</p>
+                    <p>沿岸特色為「沉下橋」。這種低矮無欄杆的橋，在水位上漲時會直接沉入水中，減少阻力避免被沖毀。推薦走訪最長的「佐田沉下橋」及秘境感十足的「岩間沉下橋」。</p>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=佐田沈下橋" target="_blank" class="btn-map">📍 佐田沉下橋</a> 
+                    <a href="https://www.google.com/maps/search/?api=1&query=岩間沈下橋" target="_blank" class="btn-map">📍 岩間沉下橋</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">Kurashi HAUS</div>
+                <div class="desc-box">超市尋找特色下酒菜「酒盜（鰹魚內臟醃製）」。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=くらしHAUS+高知" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 5 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/13 (五) 四國之南足摺岬</div>
+        <div class="day-content">
+            <!-- Day 5 路線圖 -->
+            <img src="./images/0313.png" alt="Day 5 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">10:00</span>
+                <div class="location-title">足摺海底館 & 竜串海岸</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>位於足摺宇和海國立公園。因黑潮流經，海水呈現深邃的藍黑漸層。</p>
+                    <p>「足摺海底館」設有海上與海底展望室，可深入水下七公尺看熱帶魚(門票900日圓)。「竜串海岸」則是黑潮最先觸及地，擁有奇岩怪石景觀。</p>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=足摺海底館" target="_blank" class="btn-map">📍 足摺海底館</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=竜串海岸" target="_blank" class="btn-map">📍 竜串海岸</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">13:00</span>
+                <div class="location-title">足摺岬 & 白山洞門</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>「足摺岬」是四國最南端的岬角，設有超過180度廣闊海景的展望台。</p>
+                    <p>「白山洞門」是日本最大花崗岩海蝕洞。旁邊遊客中心有免費的「万次郎足湯」可以邊泡腳邊看海。</p>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=足摺岬展望台" target="_blank" class="btn-map">📍 足摺岬展望台</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=白山洞門" target="_blank" class="btn-map">📍 白山洞門</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=万次郎足湯" target="_blank" class="btn-map">📍 万次郎足湯</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">足摺國際飯店</div>
+                <div class="desc-box">在土佐清水市區午餐後前往入住，享用飯店一泊二食。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=足摺国際ホテル" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 6 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/14 (六) 漫遊天空之路</div>
+        <div class="day-content">
+            <!-- Day 6 路線圖 -->
+            <img src="./images/0314.png" alt="Day 6 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">11:00</span>
+                <div class="location-title">四國喀斯特</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>日本三大喀斯特地形之一。行駛在被稱為「天空之路」的縣道383號上，兩側是遼闊草原與白色石灰岩，宛如羊群點綴。</p>
+                    <p>「五段高原」在傍晚能看到絕美的金色草原；「天狗高原」則有絕佳展望台可俯瞰四國山脈。</p>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=四国カルスト" target="_blank" class="btn-map">📍 喀斯特地圖</a> 
+                    <a href="https://www.google.com/maps/search/?api=1&query=天狗高原" target="_blank" class="btn-map">📍 天狗高原</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">13:30</span>
+                <div class="location-title">天狗之森 健行</div>
+                <div class="desc-box">與草原不同風貌的森林世界，全程約 4.5 公里的森林療癒之道。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=天狗の森" target="_blank" class="btn-map">📍 天狗之森</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">遊子川ゲストハウス コッコロん</div>
+                <div class="desc-box">入住前請先在超市採買晚餐及隔日早餐食材。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=遊子川ゲストハウス+コッコロん" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 7 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/15 (日) 愛媛懷舊老街</div>
+        <div class="day-content">
+            <!-- Day 7 路線圖 -->
+            <img src="./images/0315.png" alt="Day 7 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">10:30</span>
+                <div class="location-title">內子町老街</div>
+                <div class="desc-box">午餐推薦：吉長 (和食套餐)、米屋 (海鮮蓋飯)。</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>江戶末期至明治時代，這裡因紙與「木蠟」產業而極度繁榮。八日市・護國古街保護區保留了當時富商的壯麗豪宅與街景風貌。</p>
+                    <p>必看景點是「上芳我邸」，這座由木蠟起家的富商豪宅現為木蠟資料館，展示生產工序並保留了百年前的氣派裝潢。</p>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=八日市護国伝統的建造物群保存地区" target="_blank" class="btn-map">📍 景點地圖</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=上芳我邸" target="_blank" class="btn-map">📍 上芳我邸</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=和食+吉長+内子" target="_blank" class="btn-map">📍 吉長</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=米屋+内子" target="_blank" class="btn-map">📍 米屋</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">15:00</span>
+                <div class="location-title">道後溫泉</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>日本最古老溫泉之一。最具代表性的「道後溫泉本館」建於1894年，其外型據說是宮崎駿《神隱少女》油屋的原型。</p>
+                    <p>車站外有明治風格的建築，對面的「少爺時鐘」每天8:00至22:00整點會有夏目漱石小說《少爺》的角色機關演出，一旁還有免費足湯可泡。</p>
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=坊っちゃんカラクリ時計" target="_blank" class="btn-map">📍 少爺時鐘</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=道後温泉本館" target="_blank" class="btn-map">📍 道後溫泉本館</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">大江戶溫泉物語 道後</div>
+                <div class="desc-box">享用飯店一泊二食晚餐。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=大江戸温泉物語+道後" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 8 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/16 (一) 挑戰金刀比羅</div>
+        <div class="day-content">
+            <!-- Day 8 路線圖 -->
+            <img src="./images/0316.png" alt="Day 8 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">10:30</span>
+                <div class="location-title">金刀比羅宮</div>
+                <button class="btn-toggle-desc" onclick="toggleDesc(this)">📖 景點詳細介紹 ▼</button>
+                <div class="detailed-desc">
+                    <p>被譽為「一生一定要參拜一次」的神社，主祀大物主神，是海上交通、生意興隆的最高守護神。參拜需登越1368級石階(至奧社)。</p>
+                    <p>第431階處有一座「金刀比羅狗」銅像，是紀念江戶時代替病弱主人長途跋涉參拜的忠犬。走到785階的「御本宮」旁展望台，可俯瞰讚岐平原與瀨戶內海。</p>
+                </div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=金刀比羅宮" target="_blank" class="btn-map">📍 景點地圖</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">13:30</span>
+                <div class="location-title">午餐：田中屋 (骨付鳥)</div>
+                <div class="desc-box">參道前端人氣居酒屋，必吃香川名物「帶骨雞」。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=田中屋+琴平" target="_blank" class="btn-map">📍 餐廳地圖</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">Shiyon (丸龜老屋民宿)</div>
+                <div class="desc-box">入住前於丸龜市區逛街與購買晚餐食材。</div>
+                <div class="map-container"><a href="https://maps.app.goo.gl/56Xd97LWo1P6NqHv6?g_st=il" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 9 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/17 (二) 高松返回大阪</div>
+        <div class="day-content">
+            <!-- Day 9 路線圖 -->
+            <img src="./images/0317.png" alt="Day 9 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">11:00</span>
+                <div class="location-title">高松還車與市區午餐</div>
+                <div class="desc-box">
+                    逛高松中央商店街。<br>
+                    • <strong>寄鳥味鳥</strong>：香料大蒜烤帶骨雞<br>
+                    • <strong>瀨戶之祭壽司店</strong>：新鮮瀨戶內海產壽司
+                </div>
+                <div class="map-container">
+                    <a href="https://www.google.com/maps/search/?api=1&query=高松中央商店街" target="_blank" class="btn-map">📍 商店街</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=寄鳥味鳥" target="_blank" class="btn-map">📍 寄鳥味鳥</a>
+                    <a href="https://www.google.com/maps/search/?api=1&query=瀬戸の祭寿し" target="_blank" class="btn-map">📍 壽司店</a>
+                </div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">13:30</span>
+                <div class="location-title">搭車前往大阪難波</div>
+                <div class="desc-box">搭乘高速巴士，車程約 3.5 小時。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=難波駅" target="_blank" class="btn-map">📍 難波車站</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">17:30</span>
+                <div class="location-title">道頓堀逛街與晚餐</div>
+                <div class="desc-box">藥妝店補貨。晚餐想吃大阪燒。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=道頓堀" target="_blank" class="btn-map">📍 景點地圖</a></div>
+            </div>
+
+            <div class="timeline-item">
+                <span class="time-badge">住宿</span>
+                <div class="location-title">Odysis Suites Osaka Airport Hotel</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=Odysis+Suites+Osaka+Airport+Hotel" target="_blank" class="btn-map">📍 飯店地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Day 10 -->
+    <div class="day-wrapper">
+        <div class="day-header" onclick="toggleDay(this)">3/18 (三) 滿載而歸</div>
+        <div class="day-content">
+            <!-- Day 10 路線圖 -->
+            <img src="./images/0318.png" alt="Day 10 路線圖" class="map-image" onerror="this.style.display='none'">
+
+            <div class="timeline-item">
+                <span class="time-badge">11:30 - 14:00</span>
+                <div class="location-title">台灣虎航 IT285</div>
+                <div class="desc-box">大阪關西國際機場 T1 ✈️ 高雄小港機場。</div>
+                <div class="map-container"><a href="https://www.google.com/maps/search/?api=1&query=関西国際空港+第1ターミナル" target="_blank" class="btn-map">📍 機場地圖</a></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<footer>
+    <p>行程僅供參考，請依當日交通與天氣狀況調整。<br>祝旅途愉快！</p>
+</footer>
+
+<script>
+    // 頁籤切換
+    function switchTab(tabId) {
+        document.querySelectorAll('.content-section').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        
+        const buttons = document.querySelectorAll('.nav-btn');
+        if(tabId === 'overview') buttons.classList.add('active');
+        else if(tabId === 'detail') buttons.classList.add('active');
+        
+        window.scrollTo(0, 0);
+    }
+
+    // 日期展開收合
+    function toggleDay(header) {
+        const wrapper = header.parentElement;
+        wrapper.classList.toggle('open');
+    }
+
+    // 景點介紹展開收合
+    function toggleDesc(btn) {
+        const descDiv = btn.nextElementSibling;
+        if (descDiv.style.display === "block") {
+            descDiv.style.display = "none";
+            btn.innerHTML = "📖 景點詳細介紹 ▼";
+        } else {
+            descDiv.style.display = "block";
+            btn.innerHTML = "📖 隱藏詳細介紹 ▲";
+        }
+    }
+</script>
+
+</body>
+</html>
